@@ -356,7 +356,7 @@ app.post('/api/auth/reset-password', (req, res) => {
 const distPath = join(__dirname, '..', 'dist');
 if (process.env.NODE_ENV === 'production' && existsSync(distPath)) {
   app.use(express.static(distPath));
-  app.get('*', (req, res) => {
+  app.get('/{*path}', (req, res) => {
     if (!req.path.startsWith('/api')) {
       res.sendFile(join(distPath, 'index.html'));
     }
