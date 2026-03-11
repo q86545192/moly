@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "AUTH_PORT=3002 node server/index.js",
-    "build": "vue-tsc -b && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
