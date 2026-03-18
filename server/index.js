@@ -352,6 +352,187 @@ app.post('/api/auth/reset-password', (req, res) => {
   return res.json({ success: true, message: '密码已重置' });
 });
 
+// ============================================================
+// Amazon 商品页面抓取（真实数据）
+// ============================================================
+
+const AMAZON_DOMAINS = {
+  us: 'https://www.amazon.com',
+  uk: 'https://www.amazon.co.uk',
+  de: 'https://www.amazon.de',
+  jp: 'https://www.amazon.co.jp',
+  ca: 'https://www.amazon.ca',
+};
+
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+function extractTextBetween(html, startMarker, endMarker) {
+  const startIdx = html.indexOf(startMarker);
+  if (startIdx === -1) return '';
+  const afterStart = startIdx + startMarker.length;
+  const endIdx = html.indexOf(endMarker, afterStart);
+  if (endIdx === -1) return '';
+  return html.substring(afterStart, endIdx);
+}
+
+function stripHtml(html) {
+  return html.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'")
+    .replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function parseAmazonHtml(html) {
+  const result = {
+    title: '',
+    bulletPoints: [],
+    description: '',
+    price: '',
+    rating: '',
+    reviewCount: '',
+    imageUrls: [],
+    brand: '',
+    category: '',
+  };
+
+  // Title: <span id="productTitle"
+  const titleBlock = extractTextBetween(html, 'id="productTitle"', '</span>');
+  if (titleBlock) {
+    result.title = stripHtml(titleBlock.substring(titleBlock.indexOf('>') + 1));
+  }
+
+  // Bullet points: <div id="feature-bullets"
+  const bulletsBlock = extractTextBetween(html, 'id="feature-bullets"', '</div>');
+  if (bulletsBlock) {
+    const bulletMatches = bulletsBlock.match(/<span class="a-list-item"[^>]*>([\s\S]*?)<\/span>/gi) || [];
+    result.bulletPoints = bulletMatches
+      .map(b => stripHtml(b))
+      .filter(b => b.length > 5 && !b.includes('Make sure this fits') && !b.includes('Click here'));
+  }
+
+  // Description: <div id="productDescription"
+  const descBlock = extractTextBetween(html, 'id="productDescription"', '</div>');
+  if (descBlock) {
+    const descInner = extractTextBetween(descBlock, '<p>', '</p>') || descBlock;
+    result.description = stripHtml(descInner);
+  }
+
+  // Price
+  const priceMatch = html.match(/class="a-price-whole"[^>]*>([^<]+)/);
+  const priceFraction = html.match(/class="a-price-fraction"[^>]*>([^<]+)/);
+  if (priceMatch) {
+    result.price = '$' + priceMatch[1].replace(/[^0-9.,]/g, '') + (priceFraction ? priceFraction[1] : '');
+  }
+
+  // Rating
+  const ratingMatch = html.match(/(\d+\.?\d*)\s*out of\s*5\s*star/i);
+  if (ratingMatch) result.rating = ratingMatch[1];
+
+  // Review count
+  const reviewMatch = html.match(/(\d[\d,]*)\s*(?:global\s*)?rating/i);
+  if (reviewMatch) result.reviewCount = reviewMatch[1];
+
+  // Brand
+  const brandMatch = html.match(/(?:id="bylineInfo"[^>]*>.*?|Visit the\s+)([^<]+?)\s*(?:Store|store)/i);
+  if (brandMatch) result.brand = stripHtml(brandMatch[1]);
+  if (!result.brand) {
+    const brandAlt = html.match(/Brand<\/td>\s*<td[^>]*>\s*<span[^>]*>([^<]+)/i);
+    if (brandAlt) result.brand = stripHtml(brandAlt[1]);
+  }
+
+  // Images from JavaScript data
+  const imageDataMatch = html.match(/'colorImages'\s*:\s*\{\s*'initial'\s*:\s*(\[[\s\S]*?\])\s*\}/);
+  if (imageDataMatch) {
+    try {
+      const imgArray = JSON.parse(imageDataMatch[1].replace(/'/g, '"'));
+      result.imageUrls = imgArray
+        .map(img => img.hiRes || img.large || img.main || '')
+        .filter(url => url && url.startsWith('http'))
+        .slice(0, 7);
+    } catch (_) {}
+  }
+  if (!result.imageUrls.length) {
+    const imgMatches = html.match(/https:\/\/m\.media-amazon\.com\/images\/I\/[A-Za-z0-9._%-]+\.jpg/g) || [];
+    result.imageUrls = [...new Set(imgMatches)].slice(0, 7);
+  }
+
+  return result;
+}
+
+// POST /api/amazon/fetch-listing   body: { asin, market? }
+app.post('/api/amazon/fetch-listing', async (req, res) => {
+  const { asin, market } = req.body || {};
+  if (!asin || !/^[A-Z0-9]{10}$/i.test(String(asin).trim())) {
+    return res.status(400).json({ success: false, message: '无效的 ASIN' });
+  }
+
+  const cleanAsin = String(asin).trim().toUpperCase();
+  const domain = AMAZON_DOMAINS[market] || AMAZON_DOMAINS.us;
+  const url = `${domain}/dp/${cleanAsin}`;
+
+  console.log(`[Amazon] Fetching: ${url}`);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': BROWSER_UA,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'identity',
+        'Cache-Control': 'no-cache',
+      },
+      redirect: 'follow',
+    });
+
+    if (!response.ok) {
+      console.error(`[Amazon] HTTP ${response.status} for ${cleanAsin}`);
+      return res.json({
+        success: false,
+        message: `Amazon 返回 HTTP ${response.status}，可能需要验证码或该 ASIN 不存在`,
+        listing: null,
+      });
+    }
+
+    const html = await response.text();
+
+    if (html.includes('captcha') || html.includes('Type the characters you see in this image')) {
+      console.warn(`[Amazon] CAPTCHA triggered for ${cleanAsin}`);
+      return res.json({
+        success: false,
+        message: 'Amazon 触发了验证码防护，请稍后重试或手动输入商品信息',
+        listing: null,
+      });
+    }
+
+    const listing = parseAmazonHtml(html);
+
+    if (!listing.title) {
+      return res.json({
+        success: false,
+        message: '未能解析到商品标题，该 ASIN 可能不存在或页面结构已变化',
+        listing: null,
+      });
+    }
+
+    console.log(`[Amazon] Parsed: "${listing.title.substring(0, 60)}..." | ${listing.bulletPoints.length} bullets | ${listing.imageUrls.length} images`);
+
+    return res.json({
+      success: true,
+      listing: {
+        asin: cleanAsin,
+        url,
+        ...listing,
+      },
+    });
+  } catch (err) {
+    console.error(`[Amazon] Fetch error for ${cleanAsin}:`, err.message);
+    return res.json({
+      success: false,
+      message: `抓取失败: ${err.message}`,
+      listing: null,
+    });
+  }
+});
+
 // 生产环境：托管前端打包后的静态文件
 const distPath = join(__dirname, '..', 'dist');
 if (process.env.NODE_ENV === 'production' && existsSync(distPath)) {

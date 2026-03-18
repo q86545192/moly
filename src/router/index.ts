@@ -140,6 +140,24 @@ const router = createRouter({
                     meta: { requiresAuth: true }
                 },
                 {
+                    path: 'listing',
+                    name: 'tools-listing',
+                    component: () => import('../views/tools/listing/ListingEntryView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: 'listing/create',
+                    name: 'tools-listing-create',
+                    component: () => import('../views/tools/listing/ListingCreateView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: 'listing/optimize',
+                    name: 'tools-listing-optimize',
+                    component: () => import('../views/tools/listing/ListingOptimizeView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
                     path: ':toolId',
                     name: 'tools-tool',
                     component: () => import('../views/tools/ToolComingSoonView.vue'),
