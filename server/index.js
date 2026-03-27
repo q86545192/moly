@@ -611,6 +611,7 @@ app.use('/api/kling', (req, res) => {
   const path = req.path + (req.url.includes('?') ? '?' + req.url.split('?')[1] : '');
   const bodyStr = (req.method !== 'GET' && req.method !== 'HEAD') ? JSON.stringify(req.body) : null;
   const bodyBuf = bodyStr ? Buffer.from(bodyStr, 'utf8') : null;
+  const socketTimeout = req.method === 'GET' ? 30000 : 300000; // GET 30s, POST 5min
 
   console.log(`[Kling Proxy] ${req.method} ${KLING_BASE}${path} body=${bodyBuf ? (bodyBuf.length/1024).toFixed(0)+'KB' : '0KB'}`);
 
@@ -620,7 +621,6 @@ app.use('/api/kling', (req, res) => {
     path,
     method: req.method,
     headers: { 'Content-Type': 'application/json' },
-    timeout: 120000,
   };
   if (req.headers['authorization']) options.headers['Authorization'] = req.headers['authorization'];
   if (bodyBuf) options.headers['Content-Length'] = bodyBuf.length;
@@ -638,14 +638,14 @@ app.use('/api/kling', (req, res) => {
     });
   });
 
-  proxyReq.on('timeout', () => {
+  proxyReq.setTimeout(socketTimeout, () => {
     proxyReq.destroy();
-    res.status(504).json({ code: -1, message: '可灵请求超时（120s）' });
+    if (!res.headersSent) res.status(504).json({ code: -1, message: `可灵请求超时（${socketTimeout/1000}s）` });
   });
 
   proxyReq.on('error', (err) => {
     console.error('[Kling Proxy] error:', err.message);
-    res.status(502).json({ code: -1, message: `代理请求失败: ${err.message}` });
+    if (!res.headersSent) res.status(502).json({ code: -1, message: `代理请求失败: ${err.message}` });
   });
 
   if (bodyBuf) proxyReq.write(bodyBuf);
