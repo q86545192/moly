@@ -153,7 +153,7 @@
           <div class="result-loading">
             <div class="spinner"></div>
             <div class="loading-text">{{ statusText }}</div>
-            <div class="loading-sub">可灵生成约需 1–3 分钟，请耐心等待</div>
+            <div class="loading-sub">可灵生成约需 2–5 分钟，请耐心等待</div>
           </div>
         </template>
 
@@ -288,7 +288,7 @@ async function generate() {
     videoUrl.value = await klingService.imageToVideo(
       compositeImage,
       videoPrompt,
-      { model: 'kling-v1-6', duration: '10', mode: 'pro' }
+      { model: 'kling-v1-6', duration: '10', mode: 'std', maxPollingTime: 600000 }
     );
   } catch (err: any) {
     errorMsg.value = `生成失败：${err.message || '请重试'}`;
