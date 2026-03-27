@@ -251,49 +251,43 @@ async function generate() {
   videoUrl.value = null;
 
   try {
-    const descs: string[] = [];
+    // Step 1: Gemini 合成参考图（模特 + 首饰 + 场景 → 单张合成图）
+    statusText.value = 'Gemini 合成参考图...';
+    const selected = selectedJewelry.value;
+    const refImages: string[] = [modelImage.value];
+    for (const item of selected) refImages.push(item.url);
+    if (sceneImage.value) refImages.push(sceneImage.value);
 
-    // 只分析已选中的首饰
-    const toAnalyze = selectedJewelry.value;
-    if (toAnalyze.length > 0) {
-      statusText.value = `分析首饰图片（${toAnalyze.length} 件）...`;
-      for (const item of toAnalyze) {
-        try {
-          const d = await geminiService.generateWithImagesUsingFlash(
-            '请用一句话（25字以内）描述这件首饰的款式、材质和颜色特点。',
-            [item.url]
-          );
-          descs.push(d.trim());
-        } catch { /* 跳过 */ }
-      }
+    const jewelryCount = selected.length;
+    const hasScene = !!sceneImage.value;
+    const userExtra = extraPrompt.value.trim();
+
+    const compositePrompt = [
+      '你是资深电商视觉设计师，请严格遵循以下指令合成图像。',
+      '输出真实摄影质感，避免插画风，保持光影自然。',
+      `图1是模特原图。${jewelryCount > 0 ? `图2${jewelryCount > 1 ? '至图' + (jewelryCount + 1) : ''}是首饰参考图。` : ''}${hasScene ? `图${refImages.length}是场景参考图。` : ''}`,
+      '任务：',
+      jewelryCount > 0 ? '- 将参考图中的首饰自然地佩戴在模特身上，保持首饰款式、颜色、材质100%还原。' : '',
+      hasScene ? '- 将模特置于场景图的背景环境中，保持场景氛围和光线风格。' : '',
+      '- 保持模特的面部特征、身材比例、姿势完全不变。',
+      '- 输出一张完整的高质量合成照片，适合用于视频生成的首帧。',
+      userExtra ? `用户补充要求：${userExtra}` : '',
+    ].filter(Boolean).join('\n');
+
+    let compositeImage: string;
+    try {
+      const result = await geminiService.generateImage(compositePrompt, refImages, { aspectRatio: '9:16', imageSize: '2K' });
+      compositeImage = result.startsWith('data:image') ? result : modelImage.value;
+    } catch {
+      compositeImage = modelImage.value;
     }
 
-    // 分析场景图
-    let sceneDesc = '';
-    if (sceneImage.value) {
-      statusText.value = '分析场景图片...';
-      try {
-        sceneDesc = await geminiService.generateWithImagesUsingFlash(
-          '请用一句话（20字以内）描述这个场景的环境和氛围。',
-          [sceneImage.value]
-        );
-      } catch { /* 跳过 */ }
-    }
-
-    // 拼提示词
-    const jewelryPart = descs.length > 0
-      ? `模特佩戴${descs.join('、')}等精美首饰，`
-      : '模特佩戴精美首饰，';
-
-    const scenePart = sceneDesc ? `置身于${sceneDesc.trim()}，` : '';
-    const userPart = extraPrompt.value.trim() ? `${extraPrompt.value.trim()}，` : '';
-
-    const prompt = `高端首饰商业广告视频，${scenePart}${userPart}镜头从模特全身缓慢推进，先展示模特整体气质，然后运镜至耳部给耳饰特写，再平移至颈部给项链特写，${jewelryPart}慢动作拍摄，专业摄影棚灯光，精致质感，奢华风格，画面稳定流畅。`;
-
-    statusText.value = '生成中，约需 2–4 分钟…';
+    // Step 2: 将合成图传给可灵生成视频
+    statusText.value = '生成视频，约需 2–4 分钟…';
+    const videoPrompt = `高端首饰商业广告视频，镜头从全身缓慢推进，展示模特整体气质，运镜至耳部给耳饰特写，再平移至颈部给项链特写，慢动作拍摄，专业摄影灯光，精致奢华风格，画面稳定流畅。`;
     videoUrl.value = await klingService.imageToVideo(
-      modelImage.value,
-      prompt,
+      compositeImage,
+      videoPrompt,
       { model: 'kling-v1-6', duration: '10', mode: 'pro' }
     );
   } catch (err: any) {
