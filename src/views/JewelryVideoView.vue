@@ -276,7 +276,7 @@ async function generate() {
 
     let compositeImage: string;
     try {
-      const result = await geminiService.generateImage(compositePrompt, refImages, { aspectRatio: '9:16', imageSize: '2K' });
+      const result = await geminiService.generateImage(compositePrompt, refImages, { aspectRatio: '9:16', imageSize: '1K' });
       compositeImage = result.startsWith('data:image') ? result : modelImage.value;
     } catch {
       compositeImage = modelImage.value;

@@ -13,6 +13,7 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { createTransport } from 'nodemailer';
 import { WebSocketServer } from 'ws';
+import https from 'https';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = join(__dirname, 'uploads');
@@ -606,23 +607,49 @@ app.post('/api/amazon/fetch-listing', async (req, res) => {
 // ── 可灵 API 代理（绕过浏览器 CORS 限制）────────────────────────────────────
 const KLING_BASE = 'https://api-beijing.klingai.com';
 
-app.use('/api/kling', async (req, res) => {
-  const targetUrl = `${KLING_BASE}${req.path}${req.url.includes('?') ? '?' + req.url.split('?')[1] : ''}`;
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (req.headers['authorization']) headers['Authorization'] = req.headers['authorization'];
+app.use('/api/kling', (req, res) => {
+  const path = req.path + (req.url.includes('?') ? '?' + req.url.split('?')[1] : '');
+  const bodyStr = (req.method !== 'GET' && req.method !== 'HEAD') ? JSON.stringify(req.body) : null;
+  const bodyBuf = bodyStr ? Buffer.from(bodyStr, 'utf8') : null;
 
-    const fetchOptions = { method: req.method, headers };
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      fetchOptions.body = JSON.stringify(req.body);
-    }
+  console.log(`[Kling Proxy] ${req.method} ${KLING_BASE}${path} body=${bodyBuf ? (bodyBuf.length/1024).toFixed(0)+'KB' : '0KB'}`);
 
-    const upstream = await fetch(targetUrl, fetchOptions);
-    const data = await upstream.json();
-    res.status(upstream.status).json(data);
-  } catch (err) {
+  const options = {
+    hostname: 'api-beijing.klingai.com',
+    port: 443,
+    path,
+    method: req.method,
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 120000,
+  };
+  if (req.headers['authorization']) options.headers['Authorization'] = req.headers['authorization'];
+  if (bodyBuf) options.headers['Content-Length'] = bodyBuf.length;
+
+  const proxyReq = https.request(options, (proxyRes) => {
+    let data = '';
+    proxyRes.setEncoding('utf8');
+    proxyRes.on('data', chunk => data += chunk);
+    proxyRes.on('end', () => {
+      try {
+        res.status(proxyRes.statusCode).json(JSON.parse(data));
+      } catch {
+        res.status(proxyRes.statusCode).send(data);
+      }
+    });
+  });
+
+  proxyReq.on('timeout', () => {
+    proxyReq.destroy();
+    res.status(504).json({ code: -1, message: '可灵请求超时（120s）' });
+  });
+
+  proxyReq.on('error', (err) => {
+    console.error('[Kling Proxy] error:', err.message);
     res.status(502).json({ code: -1, message: `代理请求失败: ${err.message}` });
-  }
+  });
+
+  if (bodyBuf) proxyReq.write(bodyBuf);
+  proxyReq.end();
 });
 
 // 生产环境：托管前端打包后的静态文件
