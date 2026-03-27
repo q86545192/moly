@@ -147,19 +147,6 @@ export const useToolStore = defineStore('tool', () => {
         before: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=400&auto=format&fit=crop',
         after: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=400&auto=format&fit=crop'
       }
-    },
-    {
-      id: 'jewelry-promo-video',
-      name: '首饰宣发短视频',
-      description: '上传模特图与商品图，自动生成 4 张关键帧、封面图和 12 秒成片',
-      icon: '🎬',
-      category: 'utility',
-      inputTypes: ['image', 'image'],
-      outputTypes: ['image', 'video'],
-      exampleImages: {
-        before: 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?q=80&w=400&auto=format&fit=crop',
-        after: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?q=80&w=400&auto=format&fit=crop'
-      }
     }
   ]);
   

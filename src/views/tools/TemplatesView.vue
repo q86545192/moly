@@ -188,7 +188,6 @@ const categoryOptions = [
 
 const sizeOptions = [
   { value: 'all', label: '全部尺寸' },
-  { value: '720x1280', label: '720x1280' },
   { value: '1080x1080', label: '1080x1080' },
   { value: '1080x1350', label: '1080x1350' },
   { value: '1200x628', label: '1200x628' },
@@ -278,20 +277,6 @@ const templates: TemplateItem[] = [
     size: '1080x1350',
     language: '中文',
     updatedAt: '2024-03-02',
-    sortOrder: 'new',
-  },
-  {
-    id: '7',
-    name: '首饰宣发短视频',
-    description: '4 张关键帧 + 1 张封面 + 12 秒竖屏成片',
-    cover: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?q=80&w=400&auto=format&fit=crop',
-    route: '/tools/jewelry-promo-video',
-    topic: 'general',
-    category: 'fashion',
-    categoryLabel: '时尚',
-    size: '720x1280',
-    language: '中文',
-    updatedAt: '2026-03-26',
     sortOrder: 'new',
   },
 ];

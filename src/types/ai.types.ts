@@ -315,15 +315,3 @@ export interface APIResponse<T> {
     details?: any
   }
 }
-
-export type {
-  JewelryType,
-  JewelryStyleTemplate,
-  JewelryPromoInput,
-  JewelryAnalysis,
-  JewelryShotTemplate,
-  JewelryShotCandidate,
-  JewelryShotSelection,
-  JewelryPromoResult,
-  VideoGenerationTask,
-} from './jewelryPromo.types'

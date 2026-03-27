@@ -42,9 +42,6 @@ export {
 // 业务服务
 export { tryOnService, TryOnService } from './tryOn.service'
 export { soraService, SoraService } from './sora.service'
-export { nanobananaService, default as NanobananaServiceDefault } from './nanobanana.service'
-export { imaVideoService, ImaVideoService, default as ImaVideoServiceDefault } from './imaVideo.service'
-export { jewelryPromoService, default as JewelryPromoServiceDefault } from './jewelryPromo.service'
 
 // 默认导出
 export { default as GeminiServiceDefault } from './gemini.service'
