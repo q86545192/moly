@@ -470,87 +470,89 @@ async function generate() {
   lastFrameImage.value = null;
 
   try {
+    // 检测 Gemini 图片能力，失败则降级为直接用模特图生成视频
     statusText.value = '正在检测 Gemini 图像能力...';
-    await ensureGeminiVisionCapability();
-
-    // Step 1: 组装参考图
-    const selected = selectedJewelry.value.length > 0
-      ? selectedJewelry.value
-      : [jewelryImages.value[0]];
-    const rawRefAll: string[] = [modelImage.value];
-    for (const item of selected) rawRefAll.push(item.url);
-    if (sceneImage.value) rawRefAll.push(sceneImage.value);
-    const rawRefNoScene: string[] = [modelImage.value];
-    for (const item of selected) rawRefNoScene.push(item.url);
-    const rawRefCore: string[] = [modelImage.value, selected[0]?.url].filter(Boolean) as string[];
-    const rawRefGroups = [rawRefAll, rawRefNoScene, rawRefCore];
-
-    const jewelryCount = selected.length;
-    const hasScene = !!sceneImage.value;
-    const userExtra = extraPrompt.value.trim();
-    const jewelryRangeText = jewelryCount > 1 ? `图2至图${jewelryCount + 1}` : '图2';
-    const sceneText = hasScene ? `最后一张是场景参考图。` : '未提供场景图，请沿用图1原始背景。';
-
-    // Step 2: Gemini 生成首帧（正面近景）
-    const firstFramePrompt = [
-      '你是高端珠宝广告视觉导演，请根据参考图生成用于视频的首帧。',
-      `图1是模特图，${jewelryRangeText}是首饰参考图。${sceneText}`,
-      '核心目标：首帧呈现模特佩戴首饰的正面视角，构图具备商业大片感，突出首饰质感与细节。',
-      '硬性约束：首饰款式、颜色、材质、镶嵌细节必须与参考首饰图一致。',
-      '硬性约束：模特脸部身份与体型保持一致，不改变人物身份。',
-      hasScene ? '硬性约束：背景场景需贴近场景参考图氛围与色调。' : '硬性约束：背景沿用模特原图场景风格，不额外更换场景。',
-      '镜头要求：中近景到近景，首饰清晰可见，光线高级，画面干净，适配 9:16 竖屏。',
-      userExtra ? `用户补充要求：${userExtra}` : '',
-    ].filter(Boolean).join('\n');
-
-    const firstFrame = await generateFrameWithRetry(firstFramePrompt, rawRefGroups, 'Gemini 生成首帧（正面特写）...');
-    if (!firstFrame.startsWith('data:image')) {
-      throw new Error('首帧生成失败：模型未返回图片');
+    let geminiAvailable = false;
+    try {
+      await ensureGeminiVisionCapability();
+      geminiAvailable = true;
+    } catch {
+      geminiAvailable = false;
     }
-    firstFrameImage.value = firstFrame;
 
-    // Step 3: Gemini 生成尾帧（侧面特写）
-    const lastFramePrompt = [
-      '你是高端珠宝广告视觉导演，请根据同一组参考图生成视频尾帧。',
-      `图1是模特图，${jewelryRangeText}是首饰参考图。${sceneText}`,
-      '核心目标：尾帧呈现模特佩戴首饰的侧面或 3/4 侧角视角，形成与首帧明显不同的镜头角度变化。',
-      '硬性约束：首饰款式、颜色、材质、镶嵌细节必须与参考首饰图一致。',
-      '硬性约束：模特身份一致，不改变人物；保持整体穿搭和妆造风格一致。',
-      hasScene ? '硬性约束：背景场景需贴近场景参考图氛围与色调。' : '硬性约束：背景沿用模特原图场景风格，不额外更换场景。',
-      '镜头要求：重点突出首饰，强化金属/宝石高光与质感，画面具备电影级广告氛围，适配 9:16 竖屏。',
-      userExtra ? `用户补充要求：${userExtra}` : '',
-    ].filter(Boolean).join('\n');
+    if (geminiAvailable) {
+      // ── Gemini 双帧路径 ──────────────────────────────────────────────────────
+      const selected = selectedJewelry.value.length > 0
+        ? selectedJewelry.value
+        : [jewelryImages.value[0]];
+      const rawRefAll: string[] = [modelImage.value];
+      for (const item of selected) rawRefAll.push(item.url);
+      if (sceneImage.value) rawRefAll.push(sceneImage.value);
+      const rawRefNoScene: string[] = [modelImage.value];
+      for (const item of selected) rawRefNoScene.push(item.url);
+      const rawRefCore: string[] = [modelImage.value, selected[0]?.url].filter(Boolean) as string[];
+      const rawRefGroups = [rawRefAll, rawRefNoScene, rawRefCore];
 
-    const lastFrame = await generateFrameWithRetry(lastFramePrompt, rawRefGroups, 'Gemini 生成尾帧（侧面特写）...');
-    if (!lastFrame.startsWith('data:image')) {
-      throw new Error('尾帧生成失败：模型未返回图片');
+      const jewelryCount = selected.length;
+      const hasScene = !!sceneImage.value;
+      const userExtra = extraPrompt.value.trim();
+      const jewelryRangeText = jewelryCount > 1 ? `图2至图${jewelryCount + 1}` : '图2';
+      const sceneText = hasScene ? `最后一张是场景参考图。` : '未提供场景图，请沿用图1原始背景。';
+
+      const firstFramePrompt = [
+        '你是高端珠宝广告视觉导演，请根据参考图生成用于视频的首帧。',
+        `图1是模特图，${jewelryRangeText}是首饰参考图。${sceneText}`,
+        '核心目标：首帧呈现模特佩戴首饰的正面视角，构图具备商业大片感，突出首饰质感与细节。',
+        '硬性约束：首饰款式、颜色、材质、镶嵌细节必须与参考首饰图一致。',
+        '硬性约束：模特脸部身份与体型保持一致，不改变人物身份。',
+        hasScene ? '硬性约束：背景场景需贴近场景参考图氛围与色调。' : '硬性约束：背景沿用模特原图场景风格，不额外更换场景。',
+        '镜头要求：中近景到近景，首饰清晰可见，光线高级，画面干净，适配 9:16 竖屏。',
+        userExtra ? `用户补充要求：${userExtra}` : '',
+      ].filter(Boolean).join('\n');
+
+      const firstFrame = await generateFrameWithRetry(firstFramePrompt, rawRefGroups, 'Gemini 生成首帧（正面特写）...');
+      if (!firstFrame.startsWith('data:image')) throw new Error('首帧生成失败：模型未返回图片');
+      firstFrameImage.value = firstFrame;
+
+      const lastFramePrompt = [
+        '你是高端珠宝广告视觉导演，请根据同一组参考图生成视频尾帧。',
+        `图1是模特图，${jewelryRangeText}是首饰参考图。${sceneText}`,
+        '核心目标：尾帧呈现模特佩戴首饰的侧面或 3/4 侧角视角，形成与首帧明显不同的镜头角度变化。',
+        '硬性约束：首饰款式、颜色、材质、镶嵌细节必须与参考首饰图一致。',
+        '硬性约束：模特身份一致，不改变人物；保持整体穿搭和妆造风格一致。',
+        hasScene ? '硬性约束：背景场景需贴近场景参考图氛围与色调。' : '硬性约束：背景沿用模特原图场景风格，不额外更换场景。',
+        '镜头要求：重点突出首饰，强化金属/宝石高光与质感，画面具备电影级广告氛围，适配 9:16 竖屏。',
+        userExtra ? `用户补充要求：${userExtra}` : '',
+      ].filter(Boolean).join('\n');
+
+      const lastFrame = await generateFrameWithRetry(lastFramePrompt, rawRefGroups, 'Gemini 生成尾帧（侧面特写）...');
+      if (!lastFrame.startsWith('data:image')) throw new Error('尾帧生成失败：模型未返回图片');
+      lastFrameImage.value = lastFrame;
+
+      statusText.value = '可灵双帧生成视频，约需 2–5 分钟...';
+      videoUrl.value = await klingService.imageToVideo(
+        firstFrame,
+        '高端首饰商业广告视频，首帧到尾帧平滑过渡，镜头运动自然。前段突出正面佩戴细节，后段过渡到侧面特写，强调首饰高光与材质。保持人物身份一致，风格统一，画面稳定流畅，大片感强。',
+        { model: 'kling-v1-6', duration: '10', mode: 'pro', tailImageUrl: lastFrame, maxPollingTime: 600000 }
+      );
+    } else {
+      // ── 降级路径：直接用模特图生成视频 ──────────────────────────────────────
+      statusText.value = '可灵生成视频，约需 2–5 分钟...';
+      const userExtra = extraPrompt.value.trim();
+      const videoPrompt = [
+        '高端首饰商业广告视频，镜头从全身缓慢推进，展示模特整体气质，',
+        '运镜至耳部给耳饰特写，再平移至颈部给项链特写，',
+        userExtra ? userExtra + '，' : '',
+        '慢动作拍摄，专业摄影灯光，精致奢华风格，画面稳定流畅。',
+      ].filter(Boolean).join('');
+      videoUrl.value = await klingService.imageToVideo(
+        modelImage.value,
+        videoPrompt,
+        { model: 'kling-v1-6', duration: '10', mode: 'std', maxPollingTime: 600000 }
+      );
     }
-    lastFrameImage.value = lastFrame;
-
-    // Step 4: 可灵双帧生成视频（首帧+尾帧）
-    statusText.value = '可灵双帧生成视频，约需 2–5 分钟...';
-    const videoPrompt = [
-      '高端首饰商业广告视频，首帧到尾帧平滑过渡，镜头运动自然。',
-      '前段突出正面佩戴细节，后段过渡到侧面特写，强调首饰高光与材质。',
-      '保持人物身份一致，风格统一，画面稳定流畅，大片感强。',
-    ].join(' ');
-    videoUrl.value = await klingService.imageToVideo(
-      firstFrame,
-      videoPrompt,
-      {
-        model: 'kling-v1-6',
-        duration: '10',
-        mode: 'pro',
-        tailImageUrl: lastFrame,
-        maxPollingTime: 600000,
-      }
-    );
   } catch (err: any) {
     const rawMessage = err?.message || '请重试';
-    if (/不支持“图片参考输入”/.test(rawMessage)) {
-      errorMsg.value = rawMessage;
-      return;
-    }
     if (isFetchLikeError(err) || isGatewayLikeError(err)) {
       errorMsg.value = '生成失败：Gemini 网关波动，已自动执行多轮降级重试（压缩/精简参考图）仍未成功，请稍后再试。';
     } else {
