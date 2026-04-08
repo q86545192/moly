@@ -74,12 +74,6 @@ const router = createRouter({
                     component: () => import('../views/tools/HistoryView.vue')
                 },
                 {
-                    path: 'omni-model',
-                    name: 'tools-omni-model',
-                    component: () => import('../views/tools/OmniModelView.vue'),
-                    meta: { requiresAuth: true }
-                },
-                {
                     path: 'virtual-try-on',
                     name: 'tools-virtual-tryon',
                     component: () => import('../views/tools/SimplifiedTryOnView.vue'),
@@ -146,6 +140,12 @@ const router = createRouter({
                     meta: { requiresAuth: true }
                 },
                 {
+                    path: 'omni-model',
+                    name: 'tools-omni-model',
+                    component: () => import('../views/tools/OmniModelView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
                     path: 'listing',
                     name: 'tools-listing',
                     component: () => import('../views/tools/listing/ListingEntryView.vue'),
@@ -167,6 +167,36 @@ const router = createRouter({
                     path: 'aplus-wizard',
                     name: 'tools-aplus-wizard',
                     component: () => import('../views/tools/aplus/APlusWizardView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: 'jewelry-promo-video',
+                    name: 'tools-jewelry-promo-video',
+                    component: () => import('../views/tools/JewelryPromoVideoView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: 'marketing-poster',
+                    name: 'tools-marketing-poster',
+                    component: () => import('../views/tools/MarketingPosterView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: 'person-text-poster',
+                    name: 'tools-person-text-poster',
+                    component: () => import('../views/tools/PersonTextPosterView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: 'profile',
+                    name: 'tools-profile',
+                    component: () => import('../views/tools/ProfileView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: 'recharge',
+                    name: 'tools-recharge',
+                    component: () => import('../views/RechargeView.vue'),
                     meta: { requiresAuth: true }
                 },
                 {
@@ -204,6 +234,12 @@ const router = createRouter({
             path: '/workflow/try-on',
             name: 'workflow-tryon',
             component: () => import('../views/WorkflowView.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/workflow/jewelry',
+            name: 'workflow-jewelry',
+            component: () => import('../views/JewelryVideoView.vue'),
             meta: { requiresAuth: true }
         },
         {
